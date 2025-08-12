@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interface de recherche API</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/daisyui@4.12.2/dist/full.min.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Petite animation pour l'apparition des résultats */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+    </style>
+  </head>
+  <body class="bg-base-200 min-h-screen p-4 sm:p-8">
+    <div class="container mx-auto max-w-4xl">
+      <header class="text-center mb-8">
+        <h1 class="text-4xl sm:text-5xl font-bold text-primary">
+          Recherche Intelligente 🔎
+        </h1>
+        <p class="text-base-content/70 mt-2">
+          Interrogez Bing et scrapez les résultats via votre API locale.
+        </p>
+      </header>
+
+      <form id="search-form" class="card bg-base-100 shadow-xl p-6 sm:p-8">
+        <div class="space-y-4">
+          <div class="form-control">
+            <label class="label" for="key">
+              <span class="label-text">Que voulez-vous rechercher ?</span>
+            </label>
+            <input
+              type="text"
+              id="key"
+              name="key"
+              placeholder="Ex: Meilleur framework frontend"
+              class="input input-bordered input-primary w-full"
+              required
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label" for="url">
+              <span class="label-text">URL additionnelle (optionnel)</span>
+            </label>
+            <input
+              type="url"
+              id="url"
+              name="url"
+              placeholder="Ex: https://react.dev"
+              class="input input-bordered w-full"
+            />
+          </div>
+
+          <div class="form-control w-fit">
+            <label class="label cursor-pointer gap-4">
+              <span class="label-text">Utiliser un proxy</span>
+              <input
+                type="checkbox"
+                id="proxy"
+                name="proxy"
+                class="checkbox checkbox-primary"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div class="form-control mt-6">
+          <button type="submit" class="btn btn-primary btn-block">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            Lancer la recherche
+          </button>
+        </div>
+      </form>
+
+      <div id="loading-indicator" class="text-center my-8 hidden">
+        <span class="loading loading-dots loading-lg text-primary"></span>
+        <p class="text-base-content/70">Recherche en cours...</p>
+      </div>
+
+      <div id="results-container" class="mt-8 grid grid-cols-1 gap-6"></div>
+    </div>
+
+    <script>
+      const searchForm = document.getElementById("search-form");
+      const resultsContainer = document.getElementById("results-container");
+      const loadingIndicator = document.getElementById("loading-indicator");
+
+      searchForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        // 1. Préparation de l'interface
+        resultsContainer.innerHTML = ""; // Vide les anciens résultats
+        loadingIndicator.classList.remove("hidden"); // Affiche le loader
+
+        // 2. Récupération des données du formulaire
+        const formData = new FormData(searchForm);
+        const key = formData.get("key");
+        const customUrl = formData.get("url");
+        const useProxy = document.getElementById("proxy").checked;
+
+        // 3. Construction de l'URL de l'API
+        const apiURL = new URL("http://localhost:3000/search");
+        apiURL.searchParams.append("key", key);
+        if (customUrl) {
+          apiURL.searchParams.append("url", customUrl);
+        }
+        if (useProxy) {
+          apiURL.searchParams.append("proxy", "true");
+        }
+
+        // 4. Appel à l'API
+        try {
+          const response = await fetch(apiURL);
+          const data = await response.json();
+
+          if (!response.ok || data.error) {
+            throw new Error(data.error || `Erreur HTTP ${response.status}`);
+          }
+
+          displayResults(data.results);
+        } catch (error) {
+          displayError(error.message);
+        } finally {
+          loadingIndicator.classList.add("hidden"); // Cache le loader
+        }
+      });
+
+      function displayResults(results) {
+        if (Object.keys(results).length === 0) {
+          displayError(
+            "Aucun résultat n'a pu être récupéré. Essayez une autre recherche."
+          );
+          return;
+        }
+
+        for (const key in results) {
+          const result = results[key];
+          const cardHTML = `
+                    <div class="card bg-base-100 shadow-xl overflow-hidden fade-in">
+                        <div class="card-body">
+                            <div class="flex items-center gap-3 mb-4">
+                                <img src="${
+                                  result.Icon
+                                }" alt="Favicon" class="w-6 h-6" onerror="this.style.display='none'">
+                                <span class="font-semibold text-base-content/80">${
+                                  result.Name
+                                }</span>
+                            </div>
+                            <h2 class="card-title text-xl">${
+                              result.Title || "Titre non trouvé"
+                            }</h2>
+                            <p class="text-base-content/70 text-sm mt-2">
+                                ${
+                                  result.Content.substring(0, 250) +
+                                  (result.Content.length > 250 ? "..." : "")
+                                }
+                            </p>
+                            <div class="card-actions justify-between items-center mt-4">
+                                <div class="badge badge-outline">${
+                                  result.Size
+                                }</div>
+                                <a href="${
+                                  result.Link
+                                }" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+                                    Visiter la page
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-4.5 4.5L18 6m0 0v6m0-6h-6" /></svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+          resultsContainer.innerHTML += cardHTML;
+        }
+      }
+
+      function displayError(message) {
+        const errorHTML = `
+                <div role="alert" class="alert alert-error fade-in">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span><strong>Erreur :</strong> ${message}</span>
+                </div>
+            `;
+        resultsContainer.innerHTML = errorHTML;
+      }
+    </script>
+  </body>
+</html>
